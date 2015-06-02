@@ -33,6 +33,7 @@ describe ChefDK::Command::Verify do
     test-kitchen
     chef-client
     chef-dk
+    chef-provisioning
     chefspec
     rubocop
     fauxhai

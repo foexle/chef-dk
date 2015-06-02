@@ -129,6 +129,39 @@ module ChefDK
         c.smoke_test { run_in_tmpdir("chef generate cookbook example") }
       end
 
+      # entirely possible this needs to be driven by a utility method in chef-provisioning.
+      add_component "chef-provisioning" do |c|
+
+        c.base_dir = "chef-dk"
+        c.smoke_test do
+          # avoid hard-coding driver names. this produces a warning, to be silenced somehow.
+          drivers = Gem::Specification.all.select { |gs|
+            gs.name =~ /^chef-provisioning-/ }.map { |gs| gs.name }.uniq
+
+          puts drivers.inspect
+
+          ret = nil
+          tmpdir do |cwd|
+            # use Gem::Specification.find_all_by_name
+            ["1.1.1"].each do |provisioning_version|
+            # provisioning_version = "1.1.1"
+              gemfile = "chef-provisioning-#{provisioning_version}-test.gemfile"
+
+              # write out the gemfile and see if Bundler can make it go.
+              with_file(File.join(cwd, gemfile)) do |f|
+                puts f.path
+                f.puts %Q(gem "chef-provisioning", ">= #{provisioning_version}")
+                drivers.each { |d| f.puts %Q(gem "#{d}") }
+              end
+              ret = sh("bundle check", cwd: cwd, env: {"BUNDLE_GEMFILE" => gemfile })
+
+              # require 'pry'; binding.pry
+            end
+            ret
+          end
+        end
+      end
+
       add_component "chefspec" do |c|
         c.gem_base_dir = "chefspec"
         c.unit_test { sh("rake unit") }
