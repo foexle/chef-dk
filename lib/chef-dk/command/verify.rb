@@ -140,11 +140,11 @@ module ChefDK
 
           puts drivers.inspect
 
-          ret = nil
+          failures = []
+
           tmpdir do |cwd|
             # use Gem::Specification.find_all_by_name
             ["1.1.1"].each do |provisioning_version|
-            # provisioning_version = "1.1.1"
               gemfile = "chef-provisioning-#{provisioning_version}-test.gemfile"
 
               # write out the gemfile and see if Bundler can make it go.
@@ -153,11 +153,21 @@ module ChefDK
                 f.puts %Q(gem "chef-provisioning", ">= #{provisioning_version}")
                 drivers.each { |d| f.puts %Q(gem "#{d}") }
               end
-              ret = sh("bundle check", cwd: cwd, env: {"BUNDLE_GEMFILE" => gemfile })
 
-              # require 'pry'; binding.pry
-            end
-            ret
+              result = sh("bundle check", cwd: cwd, env: {"BUNDLE_GEMFILE" => gemfile })
+              if result.exitstatus != 0
+                # start with something basic.
+                failures << provisioning_version
+              end
+
+            end  # end provisioning versions.
+            # # require 'pry'; binding.pry
+
+            failures.each { |f| puts "bundle check failed for chef-provisioning #{f}." }
+
+            # WARNING bad for Windows
+            # this seems like a gross hack, but we seem to require a Mixlib::ShellOut as the return value.
+            sh(failures.size == 0 ? "true" : "false")
           end
         end
       end
