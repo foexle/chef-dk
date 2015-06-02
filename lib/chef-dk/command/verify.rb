@@ -131,43 +131,53 @@ module ChefDK
 
       # entirely possible this needs to be driven by a utility method in chef-provisioning.
       add_component "chef-provisioning" do |c|
-
         c.base_dir = "chef-dk"
-        c.smoke_test do
-          # avoid hard-coding driver names. this produces a warning, to be silenced somehow.
-          drivers = Gem::Specification.all.select { |gs|
-            gs.name =~ /^chef-provisioning-/ }.map { |gs| gs.name }.uniq
 
-          puts drivers.inspect
+        c.smoke_test do
+          # ------------
+          # we want to avoid hard-coding driver names, but calling Gem::Specification produces a warning; this
+          # seems to be the best way to silence it.
+          verbose = $VERBOSE
+          $VERBOSE = nil
+
+          drivers = Gem::Specification.all.map { |gs| gs.name }.
+                                           select { |n| n =~ /^chef-provisioning-/ }.
+                                           uniq
+
+          versions = Gem::Specification.find_all_by_name("chef-provisioning").map { |s| s.version }
+          $VERBOSE = verbose
+          # ------------
 
           failures = []
 
           tmpdir do |cwd|
-            # use Gem::Specification.find_all_by_name
-            ["1.1.1"].each do |provisioning_version|
-              gemfile = "chef-provisioning-#{provisioning_version}-test.gemfile"
+
+            versions.each do |provisioning_version|
+              gemfile = "chef-provisioning-#{provisioning_version}-chefdk-test.gemfile"
 
               # write out the gemfile and see if Bundler can make it go.
               with_file(File.join(cwd, gemfile)) do |f|
-                puts f.path
-                f.puts %Q(gem "chef-provisioning", ">= #{provisioning_version}")
+                f.puts %Q(gem "chef-provisioning", "= #{provisioning_version}")
                 drivers.each { |d| f.puts %Q(gem "#{d}") }
               end
 
               result = sh("bundle check", cwd: cwd, env: {"BUNDLE_GEMFILE" => gemfile })
-              if result.exitstatus != 0
-                # start with something basic.
+
+              # bundler exits with 1 for multiple reasons, so I think this is necessary.
+              if result.stdout =~ /Bundler can't satisfy your Gemfile's dependencies./
                 failures << provisioning_version
               end
 
             end  # end provisioning versions.
-            # # require 'pry'; binding.pry
 
-            failures.each { |f| puts "bundle check failed for chef-provisioning #{f}." }
+            if failures.size > 0
+              failures.each { |vers| puts %Q(bundle check failed for chef-provisioning "= #{vers}".) }
+              puts "Driver list (no version restriction): #{drivers.inspect}"
+            end
 
-            # WARNING bad for Windows
+            # WARNING probably bad for Windows
             # this seems like a gross hack, but we seem to require a Mixlib::ShellOut as the return value.
-            sh(failures.size == 0 ? "true" : "false")
+            sh(failures.size > 0 ? "false" : "true")
           end
         end
       end
