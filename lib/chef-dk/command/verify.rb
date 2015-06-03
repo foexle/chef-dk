@@ -161,22 +161,22 @@ module ChefDK
                 drivers.each { |d| f.puts %Q(gem "#{d}") }
               end
 
-              result = sh("bundle check", cwd: cwd, env: {"BUNDLE_GEMFILE" => gemfile })
+              result = sh("bundle install --local --quiet", cwd: cwd, env: {"BUNDLE_GEMFILE" => gemfile })
 
-              # bundler exits with 1 for multiple reasons, so I think this is necessary.
-              if result.stdout =~ /Bundler can't satisfy your Gemfile's dependencies./
-                failures << provisioning_version
+              if result.exitstatus != 0
+                failures << result
               end
 
             end  # end provisioning versions.
 
             if failures.size > 0
-              failures.each { |vers| puts %Q(bundle check failed for chef-provisioning "= #{vers}".) }
+              failures.each { |fail| puts fail.stdout }
               puts "Driver list (no version restriction): #{drivers.inspect}"
             end
 
             # WARNING probably bad for Windows
-            # this seems like a gross hack, but we seem to require a Mixlib::ShellOut as the return value.
+            # this looks like a gross hack, but we seem to require a Mixlib::ShellOut as the return value.
+            # suggestions welcome.
             sh(failures.size > 0 ? "false" : "true")
           end
         end
